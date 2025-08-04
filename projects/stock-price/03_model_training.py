@@ -2,6 +2,7 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
 from keras.callbacks import EarlyStopping, ModelCheckpoint
+import matplotlib.pyplot as plt
 import os
 
 # --------------------
@@ -47,3 +48,15 @@ history = model.fit(
 )
 
 print("✅ Model training complete.")
+
+# Plot training loss
+plt.figure(figsize=(8, 5))
+plt.plot(history.history['loss'], label='Training Loss', color='blue')
+plt.title('Model Training Loss over Epochs')
+plt.xlabel('Epoch')
+plt.ylabel('Loss (MSE)')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.savefig("models/training_loss_plot.png")
+plt.show()
