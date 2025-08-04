@@ -1,49 +1,80 @@
 import pandas as pd
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+import pickle
 import os
-import joblib
 
-# Load MultiIndex CSV
-df_raw = pd.read_csv("data/stock_data.csv", header=[0, 1])
+# --------------------
+# Parameters
+# --------------------
+SEQ_LEN = 60
+INPUT_COL = ('Close', 'AAPL')
+DATA_PATH = "data/stock_data.csv"
+SCALER_PATH = "models/scaler.pkl"
 
-# Extract 'Close' price for AAPL
-df = df_raw[('Close', 'AAPL')].copy()
-df.name = 'Close'
+# Output paths
+os.makedirs("data", exist_ok=True)
+os.makedirs("models", exist_ok=True)
 
-# Drop NaNs
+X_train_path = "data/X_train.npy"
+y_train_path = "data/y_train.npy"
+X_test_path = "data/X_test.npy"
+y_test_path = "data/y_test.npy"
+
+# --------------------
+# Load Data
+# --------------------
+df = pd.read_csv(DATA_PATH, header=[0, 1])
+print("✅ Data loaded")
+print("Columns:", df.columns.tolist())
+
+# Drop rows with NaNs (just in case)
 df.dropna(inplace=True)
 
-# Normalize
-df_min = df.min()
-df_max = df.max()
-df_norm = (df - df_min) / (df_max - df_min)
+# Extract Close prices
+prices = df[INPUT_COL].values.reshape(-1, 1)
 
-# Save scaler
-scaler = {'min': df_min, 'max': df_max}
-joblib.dump(scaler, 'data/scaler.pkl')
+# --------------------
+# Train-Test Split BEFORE scaling
+# --------------------
+split_index = int(len(prices) * 0.8)
+train_prices = prices[:split_index]
+test_prices = prices[split_index - SEQ_LEN:]  # include previous SEQ_LEN for test sequences
 
-# Windowing
-window_size = 60
-X, y = [], []
+# --------------------
+# Fit scaler ONLY on training data
+# --------------------
+scaler = MinMaxScaler()
+train_scaled = scaler.fit_transform(train_prices)
+test_scaled = scaler.transform(test_prices)
 
-for i in range(len(df_norm) - window_size):
-    window = df_norm.iloc[i: i + window_size].values
-    target = df_norm.iloc[i + window_size]
-    
-    if np.isnan(window).any() or np.isnan(target):
-        continue
+# Save the scaler
+with open(SCALER_PATH, "wb") as f:
+    pickle.dump(scaler, f)
 
-    X.append(window.reshape(-1, 1))  # Reshape for LSTM
-    y.append(target)
+# --------------------
+# Create Sequences
+# --------------------
+def create_sequences(data, seq_len):
+    X, y = [], []
+    for i in range(seq_len, len(data)):
+        X.append(data[i - seq_len:i])
+        y.append(data[i])
+    return np.array(X), np.array(y)
 
-X = np.array(X)
-y = np.array(y)
+X_train, y_train = create_sequences(train_scaled, SEQ_LEN)
+X_test, y_test = create_sequences(test_scaled, SEQ_LEN)
 
-# Save data
-np.save("data/X.npy", X)
-np.save("data/y.npy", y)
+# --------------------
+# Save to .npy files
+# --------------------
+np.save(X_train_path, X_train)
+np.save(y_train_path, y_train)
+np.save(X_test_path, X_test)
+np.save(y_test_path, y_test)
 
 print("✅ Preprocessing complete.")
-print("X shape:", X.shape)
-print("y shape:", y.shape)
-print("📦 Saved scaler.pkl with min and max values")
+print("X_train shape:", X_train.shape)
+print("y_train shape:", y_train.shape)
+print("X_test shape:", X_test.shape)
+print("y_test shape:", y_test.shape)

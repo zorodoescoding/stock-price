@@ -1,31 +1,37 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
-import joblib
+from keras.models import load_model
+import pickle
 
-# Load data and model
-X = np.load("data/X.npy")
-y = np.load("data/y.npy")
-model = load_model("data/lstm_model.keras")
+# -------------------------------
+# Load the saved model and data
+# -------------------------------
+model = load_model("models/lstm_model.keras")
 
-# Predict
-y_pred = model.predict(X).flatten()
+# Load test data from data/
+X_test = np.load("data/X_test.npy")
+y_test = np.load("data/y_test.npy")
 
-# Load scaler
-scaler = joblib.load("data/scaler.pkl")
-data_min = scaler['min']
-data_max = scaler['max']
+# Load the scaler to inverse transform
+with open("models/scaler.pkl", "rb") as f:
+    scaler = pickle.load(f)
 
-# Inverse transform predictions and actual values
-y_pred_inv = y_pred * (data_max - data_min) + data_min
-y_actual_inv = y * (data_max - data_min) + data_min
 
+# -------------------------------
+# Make predictions
+# -------------------------------
+predicted = model.predict(X_test)
+predicted_prices = scaler.inverse_transform(predicted)
+actual_prices = scaler.inverse_transform(y_test.reshape(-1, 1))
+
+# -------------------------------
 # Plotting
-plt.figure(figsize=(12, 6))
-plt.plot(y_actual_inv, label="Actual Price", linewidth=2)
-plt.plot(y_pred_inv, label="Predicted Price", linestyle="--")
+# -------------------------------
+plt.figure(figsize=(10, 6))
+plt.plot(actual_prices, label="Actual Price")
+plt.plot(predicted_prices, label="Predicted Price")
 plt.title("Stock Price Prediction")
-plt.xlabel("Time")
+plt.xlabel("Days")
 plt.ylabel("Price")
 plt.legend()
 plt.grid(True)
